@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless Shopping Deal Finder Agent ($0/month on AWS Free Tier)
+
+Parameters:
+  TargetProduct:
+    Type: String
+    Default: "MacBook Pro"
+    Description: Product name or search keyword to track
+  Category:
+    Type: String
+    Default: "Laptops"
+    Description: Product category
+  AlertEmailTo:
+    Type: String
+    Default: "ronabraham2000@gmail.com"
+    Description: Recipient email address for deal alerts
+  AlertEmailFrom:
+    Type: String
+    Default: "Shopping Deals <onboarding@resend.dev>"
+    Description: Verified sender address from Resend
+  ResendApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key from resend.com
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional Google AI Studio API key for Gemini Flash deal verification
+  ScraperApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional free proxy key from scraperapi.com
+  MaxPrice:
+    Type: Number
+    Default: 1990.0
+    Description: Maximum price ceiling in USD
+  MinRam:
+    Type: Number
+    Default: 24
+    Description: Minimum RAM in GB
+  MinStorage:
+    Type: Number
+    Default: 1000
+    Description: Minimum SSD storage in GB
+
+Resources:
+  MacBookDealsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: MacBookDeals
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: deal_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: deal_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  MacBookDealFinderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      MemorySize: 1024
+      Timeout: 300
+      Environment:
+        Variables:
+          TARGET_PRODUCT: !Ref TargetProduct
+          CATEGORY: !Ref Category
+          DYNAMODB_TABLE_NAME: !Ref MacBookDealsTable
+          ALERT_EMAIL_TO: !Ref AlertEmailTo
+          ALERT_EMAIL_FROM: !Ref AlertEmailFrom
+          RESEND_API_KEY: !Ref ResendApiKey
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          SCRAPER_API_KEY: !Ref ScraperApiKey
+          MAX_PRICE: !Ref MaxPrice
+          MIN_RAM_GB: !Ref MinRam
+          MIN_STORAGE_GB: !Ref MinStorage
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MacBookDealsTable
+      Events:
+        EverySixHours:
+          Type: Schedule
+          Properties:
+            Schedule: rate(6 hours)
+            Description: Scans for shopping deals every 6 hours
+    Metadata:
+      DockerTag: latest
+      DockerContext: .
+      Dockerfile: Dockerfile
+
+Outputs:
+  FunctionArn:
+    Description: Shopping Deal Finder Lambda Function ARN
+    Value: !GetAtt MacBookDealFinderFunction.Arn
+  DynamoDBTableName:
+    Description: DynamoDB Table Name
+    Value: !Ref MacBookDealsTable

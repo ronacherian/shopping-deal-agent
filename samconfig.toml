@@ -1,0 +1,34 @@
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "sam-app"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+resolve_s3 = true
+resolve_image_repos = true
+region = "us-east-1"
+parameter_overrides = [
+    "AlertEmailTo=\"ronabraham2000@gmail.com\"",
+    "AlertEmailFrom=\"Shopping Deals <onboarding@resend.dev>\"",
+    "TargetProduct=\"MacBook Pro\"",
+    "Category=\"Laptops\"",
+    "MaxPrice=1990.0",
+    "MinRam=24",
+    "MinStorage=1000"
+]
+
+[default.sync.parameters]
+watch = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"
