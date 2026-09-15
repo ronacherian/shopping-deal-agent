@@ -24,7 +24,7 @@ _load_env_file()
 
 class Config:
     # Target Item Description & Category
-    TARGET_PRODUCT: str = os.getenv("TARGET_PRODUCT", "MacBook Pro")
+    TARGET_PRODUCT: str = os.getenv("TARGET_PRODUCT", "MacBook Pro / Air")
     CATEGORY: str = os.getenv("CATEGORY", "Laptops")
 
     # Hardware Criteria

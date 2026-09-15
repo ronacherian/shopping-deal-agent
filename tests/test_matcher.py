@@ -143,13 +143,42 @@ class TestDealMatcher(unittest.TestCase):
         is_match, parsed = self.matcher.fast_filter(listing)
         self.assertFalse(is_match)
 
-    def test_reject_macbook_air(self):
+    def test_valid_macbook_air_15inch_match(self):
         listing = RawListing(
-            id="test_air",
+            id="test_air_15",
             source="TestStore",
-            title="Apple MacBook Air 15 M3 24GB Unified Memory 1TB SSD",
+            title="Apple MacBook Air 15-inch M3 24GB Unified Memory 1TB SSD Midnight",
             price=1699.00,
-            url="https://example.com/air"
+            url="https://example.com/air15"
+        )
+        is_match, parsed = self.matcher.fast_filter(listing)
+        self.assertTrue(is_match)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed.ram_gb, 24)
+        self.assertEqual(parsed.storage_gb, 1000)
+        self.assertEqual(parsed.screen_size, '15"')
+
+    def test_valid_macbook_air_13inch_match(self):
+        listing = RawListing(
+            id="test_air_13",
+            source="TestStore",
+            title="Apple MacBook Air 13-inch M3 24GB RAM 1TB SSD Starlight",
+            price=1499.00,
+            url="https://example.com/air13"
+        )
+        is_match, parsed = self.matcher.fast_filter(listing)
+        self.assertTrue(is_match)
+        self.assertEqual(parsed.ram_gb, 24)
+        self.assertEqual(parsed.storage_gb, 1000)
+        self.assertEqual(parsed.screen_size, '13"')
+
+    def test_reject_macbook_air_low_ram(self):
+        listing = RawListing(
+            id="test_air_low_ram",
+            source="TestStore",
+            title="Apple MacBook Air 15 M3 16GB Unified Memory 1TB SSD",
+            price=1399.00,
+            url="https://example.com/air_low_ram"
         )
         is_match, parsed = self.matcher.fast_filter(listing)
         self.assertFalse(is_match)

@@ -1,4 +1,4 @@
-"""Apple Certified Refurbished store scraper."""
+"""Apple Certified Refurbished store scraper for MacBook Pro and MacBook Air."""
 import re
 import json
 import logging
@@ -14,12 +14,14 @@ class AppleRefurbishedScraper(BaseScraper):
 
     def __init__(self):
         super().__init__()
-        # Extensible category/product path
-        self.url = "https://www.apple.com/shop/refurbished/mac/macbook-pro"
+        self.urls = [
+            "https://www.apple.com/shop/refurbished/mac/macbook-pro",
+            "https://www.apple.com/shop/refurbished/mac/macbook-air"
+        ]
 
-    def scrape(self) -> List[RawListing]:
+    def _scrape_page(self, url: str) -> List[RawListing]:
         results = []
-        html = self.fetch_url(self.url)
+        html = self.fetch_url(url)
         if not html:
             return results
 
@@ -44,13 +46,12 @@ class AppleRefurbishedScraper(BaseScraper):
                             source="Apple Certified Refurbished",
                             title=title,
                             price=price,
-                            url=full_url or self.url,
+                            url=full_url or url,
                             condition="Apple Certified Refurbished",
                             raw_specs=title,
                             category=config.CATEGORY
                         ))
                 if results:
-                    logger.info(f"[{self.name}] Extracted {len(results)} listings via bootstrap JSON.")
                     return results
             except Exception as e:
                 logger.debug(f"[{self.name}] Error parsing bootstrap JSON: {e}")
@@ -75,6 +76,17 @@ class AppleRefurbishedScraper(BaseScraper):
                     raw_specs=title.strip(),
                     category=config.CATEGORY
                 ))
-
-        logger.info(f"[{self.name}] Completed: {len(results)} listings fetched.")
         return results
+
+    def scrape(self) -> List[RawListing]:
+        all_results = []
+        seen = set()
+        for url in self.urls:
+            page_results = self._scrape_page(url)
+            for item in page_results:
+                if item.id not in seen:
+                    seen.add(item.id)
+                    all_results.append(item)
+
+        logger.info(f"[{self.name}] Completed: {len(all_results)} listings fetched across Pro & Air.")
+        return all_results
