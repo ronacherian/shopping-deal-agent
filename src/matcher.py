@@ -11,7 +11,7 @@ from src.models import RawListing, ParsedDeal
 logger = logging.getLogger(__name__)
 
 DISQUALIFIED_KEYWORDS = [
-    "macbook air", "case", "cover", "sleeve", "bag", "charger", "power adapter",
+    "case", "cover", "sleeve", "bag", "charger", "power adapter",
     "screen protector", "keyboard skin", "logic board", "motherboard",
     "box only", "parts only", "for parts", "not working", "icloud locked",
     "broken screen", "water damage", "bad board", "shell only"
@@ -41,8 +41,9 @@ class DealMatcher:
             if keyword in text:
                 return False, None
 
-        # 3. Target product check
-        if "macbook pro" not in text and "mbp" not in text:
+        # 3. Target product check: Supports MacBook Pro and MacBook Air
+        is_macbook = any(k in text for k in ["macbook pro", "mbp", "macbook air", "mba", "macbook"])
+        if not is_macbook:
             return False, None
 
         # 4. Chip verification: Must be M3 or better (M3, M3 Pro, M3 Max, M4, M4 Pro, M4 Max)
@@ -62,7 +63,7 @@ class DealMatcher:
             ram_gb = int(explicit_ram.group(1))
         else:
             ram_candidates = re.findall(r'\b(24|32|36|48|64|96|128)\s*(?:gb)?\b', text)
-            valid_ram = [int(c) for c in ram_candidates if int(c) not in (14, 16, 512, 1000)]
+            valid_ram = [int(c) for c in ram_candidates if int(c) not in (13, 14, 15, 16, 512, 1000)]
             if valid_ram:
                 ram_gb = max(valid_ram)
 
@@ -90,10 +91,14 @@ class DealMatcher:
         if not storage_gb or storage_gb < self.min_storage:
             return False, None
 
-        # 7. Screen size detection
+        # 7. Screen size detection (13", 14", 15", 16")
         screen_size = '14"'
         if '16' in text and ('16-inch' in text or '16"' in text or '16 in' in text or '16 inch' in text):
             screen_size = '16"'
+        elif '15' in text and ('15-inch' in text or '15"' in text or '15 in' in text or '15 inch' in text):
+            screen_size = '15"'
+        elif '13' in text and ('13-inch' in text or '13"' in text or '13 in' in text or '13 inch' in text or '13.6' in text):
+            screen_size = '13"'
 
         parsed_deal = ParsedDeal(
             id=listing.id,
@@ -108,7 +113,7 @@ class DealMatcher:
             condition=listing.condition,
             original_price=listing.original_price,
             image_url=listing.image_url,
-            gemini_analysis=f"Verified specs: {chip}, {ram_gb}GB Unified Memory, {storage_gb//1000}TB SSD."
+            gemini_analysis=f"Verified specs: {chip}, {ram_gb}GB Unified Memory, {storage_gb//1000}TB SSD, {screen_size} display."
         )
         return True, parsed_deal
 
@@ -119,10 +124,10 @@ class DealMatcher:
             return deal
 
         prompt = f"""
-Analyze this refurbished MacBook Pro listing and confirm if it strictly satisfies the target criteria.
+Analyze this refurbished MacBook listing (MacBook Pro or MacBook Air) and confirm if it strictly satisfies the target criteria.
 
 Target Criteria:
-- Model: Apple MacBook Pro (Laptop only, no accessories)
+- Model: Apple MacBook Pro or Apple MacBook Air (Laptop only, no accessories)
 - Processor: M3 or better (M3, M3 Pro, M3 Max, M4, M4 Pro, M4 Max)
 - RAM / Unified Memory: At least 24GB
 - Storage: At least 1TB SSD
@@ -138,7 +143,7 @@ Listing Details:
 Respond strictly in valid JSON:
 {{
   "is_match": true or false,
-  "chip": "string (e.g., M3 Pro 12-core)",
+  "chip": "string (e.g., M3 or M3 Pro)",
   "ram_gb": integer,
   "storage_gb": integer,
   "condition_summary": "string",

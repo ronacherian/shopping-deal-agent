@@ -5,7 +5,7 @@ Description: Serverless Shopping Deal Finder Agent ($0/month on AWS Free Tier)
 Parameters:
   TargetProduct:
     Type: String
-    Default: "MacBook Pro"
+    Default: "MacBook Pro / Air"
     Description: Product name or search keyword to track
   Category:
     Type: String
