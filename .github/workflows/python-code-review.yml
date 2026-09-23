@@ -60,7 +60,7 @@ jobs:
       - name: Run Python Reviewer Agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.Gemini_key || secrets.GEMINI_KEY }}
-          GEMINI_MODEL: "gemini-2.0-flash"
+          GEMINI_MODEL: "gemini-3.6-flash"
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

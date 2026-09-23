@@ -192,11 +192,24 @@ Please perform a code review on the following Python Pull Request.
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
-    # Free-tier Flash models prioritized to avoid 'limit: 0' on Pro models:
+    # Recommended models per Google API (gemini-3.6-flash, gemini-3.5-flash-lite):
     candidate_models = []
     if custom_model := os.getenv("GEMINI_MODEL"):
         candidate_models.append(custom_model)
-    candidate_models.extend(["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"])
+    candidate_models.extend([
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
+    ])
+
+    # Dynamic fallback: query available models from Google API
+    try:
+        for m in client.models.list():
+            model_id = getattr(m, "name", "").replace("models/", "")
+            if "flash" in model_id.lower() and "lite" not in model_id.lower() and model_id not in candidate_models:
+                candidate_models.append(model_id)
+    except Exception as e:
+        print(f"[Review Agent] Model discovery notice: {e}")
 
     # Deduplicate while preserving order
     seen = set()
