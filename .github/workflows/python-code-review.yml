@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   review:
-    name: Run Python Code Review
+    name: Run Python Code Review Agent
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
@@ -39,13 +39,13 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Dependencies
+      - name: Install Review & Project Dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install ruff pytest pytest-asyncio google-genai
+          pip install tiktoken pydantic google-genai httpx ruff pytest pytest-asyncio
 
-      # Phase 1: Automated Static Analysis & Tests
+      # Phase 1: Local Automated Checks (Linter & Pytest)
       - name: Run Phase 1 Automated Checks
         continue-on-error: true
         run: |
@@ -56,19 +56,15 @@ jobs:
           echo "#### Pytest Suite Output:" >> phase1_report.txt
           pytest -v >> phase1_report.txt 2>&1 || true
 
-      # Phase 2: Review Agent execution with Gemini API
+      # Phase 2: Agent Review (Tiktoken pruning, Structured JSON, GitHub REST API)
       - name: Run Python Reviewer Agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.Gemini_key || secrets.GEMINI_KEY }}
+          GEMINI_MODEL: "gemini-3.1-pro-preview"
           BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           python .github/scripts/review_agent.py
-
-      # Post or update PR review comment
-      - name: Post PR Review Comment
-        if: always() && hashFiles('pr_review.md') != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          gh pr comment "$PR_NUMBER" --body-file pr_review.md
