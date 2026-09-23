@@ -97,7 +97,7 @@ def is_ignored_file(filepath: str) -> bool:
 def count_tokens(text: str, encoding_name: str = "cl100k_base") -> int:
     try:
         enc = tiktoken.get_encoding(encoding_name)
-    except Exception:
+    except (KeyError, ValueError):
         enc = tiktoken.encoding_for_model("gpt-4")
     return len(enc.encode(text))
 
@@ -106,9 +106,14 @@ def prune_and_chunk_diff(base_ref: str, max_tokens: int = 15000) -> tuple[str, l
     Parses git diff by file, strips noise/lockfiles/caches,
     and budgets tokens using tiktoken.
     """
-    # Get list of changed files
-    diff_stat_cmd = f"git diff origin/{base_ref}...HEAD --name-only"
-    changed_files = subprocess.run(diff_stat_cmd, shell=True, capture_output=True, text=True).stdout.strip().splitlines()
+    # Get list of changed files safely without shell=True
+    diff_stat_res = subprocess.run(
+        ["git", "diff", f"origin/{base_ref}...HEAD", "--name-only"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    changed_files = diff_stat_res.stdout.strip().splitlines()
 
     valid_files = [f for f in changed_files if not is_ignored_file(f)]
     print(f"[Context Pruning] Total changed files: {len(changed_files)}, Kept after pruning: {len(valid_files)}")
@@ -118,8 +123,13 @@ def prune_and_chunk_diff(base_ref: str, max_tokens: int = 15000) -> tuple[str, l
     parsed_files = []
 
     for file_path in valid_files:
-        diff_cmd = f"git diff origin/{base_ref}...HEAD -- '{file_path}'"
-        file_diff = subprocess.run(diff_cmd, shell=True, capture_output=True, text=True).stdout.strip()
+        diff_res = subprocess.run(
+            ["git", "diff", f"origin/{base_ref}...HEAD", "--", file_path],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        file_diff = diff_res.stdout.strip()
         if not file_diff:
             continue
 
@@ -326,7 +336,7 @@ def post_github_review(review: PRReviewResult):
             print("[Feedback Loop] ✅ Successfully posted GitHub PR Review with inline comments!")
         elif res.status_code == 422:
             # 422 Unprocessable Entity can happen if a line number is outside diff range.
-            print(f"[Feedback Loop] Warning: Some inline lines were outside diff hunk (422). Posting review body without inline comments...")
+            print("[Feedback Loop] Warning: Some inline lines were outside diff hunk (422). Posting review body without inline comments...")
             review_data["comments"] = []
             res_retry = http_client.post(url, headers=headers, json=review_data)
             if res_retry.status_code == 200:
@@ -343,7 +353,7 @@ def post_github_review(review: PRReviewResult):
 
 def main():
     base_ref = os.getenv("BASE_REF", "main")
-    diff, files = prune_and_chunk_diff(base_ref=base_ref)
+    diff, _ = prune_and_chunk_diff(base_ref=base_ref)
 
     if not diff:
         print("[Review Agent] No code files to review after pruning.")
