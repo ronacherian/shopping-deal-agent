@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -191,22 +192,43 @@ Please perform a code review on the following Python Pull Request.
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
-    try:
-        chat = client.chats.create(model=model_name, config=config)
-        response = chat.send_message(prompt)
-    except Exception as e:
-        print(f"[Warning] Call with {model_name} failed: {e}. Falling back to gemini-3.7-flash...")
-        chat = client.chats.create(model="gemini-3.7-flash", config=config)
-        response = chat.send_message(prompt)
+    # Free-tier Flash models prioritized to avoid 'limit: 0' on Pro models:
+    candidate_models = []
+    if custom_model := os.getenv("GEMINI_MODEL"):
+        candidate_models.append(custom_model)
+    candidate_models.extend(["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"])
 
-    # Parse response into Pydantic model
-    try:
-        data = json.loads(response.text)
-        return PRReviewResult.model_validate(data)
-    except Exception as e:
-        print(f"[Error] Failed to validate structured output with Pydantic: {e}")
-        print(f"Raw Response: {response.text}")
-        raise
+    # Deduplicate while preserving order
+    seen = set()
+    models_to_try = [m for m in candidate_models if m and not (m in seen or seen.add(m))]
+
+    last_err = None
+    for model_name in models_to_try:
+        print(f"[Review Agent] Trying model: {model_name}...")
+        for attempt in range(1, 4):
+            try:
+                chat = client.chats.create(model=model_name, config=config)
+                response = chat.send_message(prompt)
+                if response and response.text:
+                    data = json.loads(response.text)
+                    print(f"[Review Agent] ✅ Successfully generated structured review using {model_name}")
+                    return PRReviewResult.model_validate(data)
+            except Exception as e:
+                last_err = e
+                err_msg = str(e)
+                print(f"[Review Agent] {model_name} (attempt {attempt}/3) error: {err_msg}")
+                # If model is not available or has 0 quota, switch to next model immediately
+                if "limit: 0" in err_msg or "404" in err_msg or "NOT_FOUND" in err_msg or "no longer available" in err_msg:
+                    print(f"[Review Agent] Model {model_name} unavailable or has 0 quota. Trying next model...")
+                    break
+                # For 503 UNAVAILABLE or transient rate limits, back off and retry
+                if attempt < 3:
+                    wait_time = 4 * attempt
+                    print(f"[Review Agent] Backing off for {wait_time}s before retrying {model_name}...")
+                    time.sleep(wait_time)
+
+    print(f"[Error] All candidate models failed. Last error: {last_err}")
+    raise last_err
 
 
 # ==============================================================================
